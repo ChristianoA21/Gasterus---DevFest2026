@@ -1,0 +1,6 @@
+{
+  "name": "Gasterus - AI Skill Gap & Micro-Internship Hub",
+  "description": "Platform penjembatani skill gap mahasiswa dengan industri untuk DevFest 2026 melalui AI Skill Gap Analyzer, Micro-Internship Hub UMKM/Startup, dan AI Career Mentor.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
