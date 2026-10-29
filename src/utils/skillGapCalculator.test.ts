@@ -1,37 +1,45 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateReadiness, filterMicroInternships } from './skillGapCalculator.ts';
+import { 
+  classifyCampusTier, 
+  generateContextualGapAnalysis, 
+  filterMicroInternships 
+} from './skillGapCalculator.ts';
 
-test('calculateReadiness: correctly scores user skills vs target industry skills', () => {
-  const targetSkills = [
-    { name: 'Python', importance: 'critical' as const, category: 'tech' },
-    { name: 'SQL', importance: 'critical' as const, category: 'tech' },
-    { name: 'Tableau', importance: 'recommended' as const, category: 'tool' },
-    { name: 'Git', importance: 'bonus' as const, category: 'tool' },
-  ];
-
-  // User has Python and SQL (both critical = 3 + 3 = 6 weight out of total 3+3+2+1 = 9 => 67%)
-  const userSkills = ['Python', 'SQL'];
-  const result = calculateReadiness(userSkills, targetSkills, 10);
-
-  assert.equal(result.matchScore, 67);
-  assert.equal(result.readinessTier, 'Siap Micro-Internship');
-  assert.equal(result.campusAcquiredCount, 2);
-  assert.equal(result.industryGapCount, 2);
-  assert.ok(result.missingToolSkills.includes('Tableau'));
-  assert.ok(result.missingToolSkills.includes('Git'));
-  assert.equal(result.estimatedWeeks, 3); // 2 skills * 15h = 30h / 10h/week = 3 weeks
+test('classifyCampusTier: accurately classifies top tier vs local campuses', () => {
+  assert.equal(classifyCampusTier('ITB'), 'unggul');
+  assert.equal(classifyCampusTier('Universitas Indonesia'), 'unggul');
+  assert.equal(classifyCampusTier('UGM'), 'unggul');
+  assert.equal(classifyCampusTier('BINUS University'), 'unggul');
+  assert.equal(classifyCampusTier('Telkom University'), 'unggul');
+  
+  // Regional / local campus
+  assert.equal(classifyCampusTier('Universitas Daerah Pelita Jaya'), 'berkembang');
+  assert.equal(classifyCampusTier('STMIK Nusa Mandiri Klaten'), 'berkembang');
 });
 
-test('calculateReadiness: handles empty skills with Tahap Eksplorasi', () => {
-  const targetSkills = [
-    { name: 'React', importance: 'critical' as const, category: 'tech' },
-  ];
-  const result = calculateReadiness([], targetSkills, 10);
+test('generateContextualGapAnalysis: gives higher match (60%-78%) for top tier campus', () => {
+  const result = generateContextualGapAnalysis('ITB', 'Teknik Informatika', 'Data Analyst');
+  assert.equal(result.university, 'ITB');
+  assert.equal(result.targetRole, 'Data Analyst');
+  assert.ok(result.matchPercentage >= 60 && result.matchPercentage <= 78, `Expected 60-78%, got ${result.matchPercentage}%`);
+  assert.equal(result.matchScore, result.matchPercentage);
+  assert.ok(result.curriculumAnalysis.includes('ITB'));
+  assert.ok(result.curriculumAnalysis.includes('Teknik Informatika'));
+  assert.ok(result.missingSkills.length >= 3);
+  assert.ok(result.roadmap.length >= 3);
+  assert.ok(result.roadmap[0].recommendedMicroInternship.length > 5);
+});
 
-  assert.equal(result.matchScore, 0);
-  assert.equal(result.readinessTier, 'Tahap Eksplorasi');
-  assert.equal(result.missingCriticalSkills[0], 'React');
+test('generateContextualGapAnalysis: gives 35%-55% match for regional campus with missing modern tools', () => {
+  const result = generateContextualGapAnalysis('Universitas Swasta Daerah', 'Sistem Informasi', 'Frontend Developer');
+  assert.equal(result.university, 'Universitas Swasta Daerah');
+  assert.ok(result.matchPercentage >= 35 && result.matchPercentage <= 55, `Expected 35-55%, got ${result.matchPercentage}%`);
+  assert.ok(result.curriculumAnalysis.includes('Universitas Swasta Daerah'));
+  assert.ok(result.curriculumAnalysis.includes('Sistem Informasi'));
+  // Verify missing skills include modern frameworks/tools
+  const missingStr = result.missingSkills.join(' ');
+  assert.ok(missingStr.includes('React') || missingStr.includes('Git') || missingStr.includes('Tailwind') || missingStr.includes('Tooling'));
 });
 
 test('filterMicroInternships: filters accurately by category and stipend', () => {

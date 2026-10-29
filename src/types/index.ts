@@ -19,32 +19,41 @@ export interface IndustrySkillTarget {
   whyCampusLacks: string;
 }
 
-export interface RoadmapMilestone {
-  id: string;
-  phase: number;
-  title: string;
-  description: string;
-  targetSkills: string[];
-  estimatedWeeks: number;
-  recommendedResources: {
+export interface RoadmapPhase {
+  phase: string;
+  focus: string;
+  skillsToLearn: string[];
+  recommendedMicroInternship: string;
+  // Optional enriched properties for backward compatibility
+  id?: string;
+  title?: string;
+  description?: string;
+  targetSkills?: string[];
+  estimatedWeeks?: number;
+  miniProjectPrompt?: string;
+  recommendedResources?: {
     title: string;
     type: 'course' | 'doc' | 'youtube' | 'project';
     url: string;
     isFree: boolean;
   }[];
-  miniProjectPrompt: string;
-  isCompleted?: boolean;
 }
 
 export interface SkillGapAnalysisResult {
-  matchScore: number;
-  summary: string;
-  academicStrongPoints: string[];
-  criticalGaps: string[];
-  industryInsights: string;
-  readinessTier: 'Siap Kerja Mandiri' | 'Siap Micro-Internship' | 'Butuh Fondasi Portofolio' | 'Tahap Eksplorasi';
-  roadmap: RoadmapMilestone[];
-  suggestedMicroInternshipTags: string[];
+  university: string;
+  targetRole: string;
+  matchPercentage: number;
+  matchScore: number; // Synchronized alias for matchPercentage
+  curriculumAnalysis: string;
+  missingSkills: string[];
+  campusTier?: 'unggul' | 'berkembang';
+  summary?: string;
+  academicStrongPoints?: string[];
+  criticalGaps?: string[];
+  industryInsights?: string;
+  readinessTier?: 'Siap Kerja Mandiri' | 'Siap Micro-Internship' | 'Butuh Fondasi Portofolio' | 'Tahap Eksplorasi';
+  roadmap: RoadmapPhase[];
+  suggestedMicroInternshipTags?: string[];
 }
 
 export interface MicroInternship {

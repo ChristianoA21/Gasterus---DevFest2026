@@ -11,9 +11,19 @@ export const INITIAL_USER_PROFILE: UserProfile = {
 };
 
 export const INITIAL_ANALYSIS_RESULT: SkillGapAnalysisResult = {
+  university: 'Universitas Indonesia',
+  targetRole: 'Data Analyst & BI Specialist',
+  matchPercentage: 68,
   matchScore: 68,
+  curriculumAnalysis: 'Kurikulum Sistem Informasi di Universitas Indonesia (Akreditasi Unggul) memiliki silabus basis data dan analisis proses bisnis yang mutakhir dengan nilai kesiapan 68%. Kesenjangan utama terfokus pada pengalaman penanganan dataset industri nyata (real-world data wrangling), business dashboarding interaktif (Tableau/Looker), serta soft skills komunikasi rekomendasi bisnis ke stakeholder.',
+  missingSkills: [
+    'Data Wrangling Riil pada Dataset Bisnis Kotor (Pandas & Advanced SQL)',
+    'Business Dashboarding Interaktif (Tableau / Looker Studio)',
+    'Penerjemahan Insight Metrik ke Keputusan Bisnis Nyata',
+    'Git Workflow & Version Control di Lingkungan Tim Industri',
+  ],
   readinessTier: 'Siap Micro-Internship',
-  summary: 'Di jurusan Sistem Informasi, kurikulum kampus sudah memberikan pemahaman basis data dan alur proses bisnis yang baik. Namun standar industri 2026 menuntut kemahiran tools visualisasi interaktif (Looker Studio / Tableau), manipulasi data riil (Pandas wrangling), dan penerjemahan insight ke strategi bisnis.',
+  summary: 'Kurikulum Sistem Informasi di Universitas Indonesia (Akreditasi Unggul) memiliki silabus basis data dan analisis proses bisnis yang mutakhir dengan nilai kesiapan 68%. Kesenjangan utama terfokus pada pengalaman penanganan dataset industri nyata.',
   academicStrongPoints: [
     'Pemahaman Dasar Basis Data Relasional & Normalisasi',
     'Logika Berpikir Algoritmik & Pemodelan UML',
@@ -30,7 +40,10 @@ export const INITIAL_ANALYSIS_RESULT: SkillGapAnalysisResult = {
   roadmap: [
     {
       id: 'phase-1',
-      phase: 1,
+      phase: 'Bulan 1: Pondasi Praktis & Data Wrangling Industri',
+      focus: 'Mengejar ketertinggalan silabus pada manipulasi data riil dan SQL Window Functions',
+      skillsToLearn: ['SQL Window Functions', 'Pandas Data Wrangling', 'Data Cleaning'],
+      recommendedMicroInternship: 'Pembersihan dataset POS transaksi 6 bulan kedai kopi UMKM',
       title: 'Fase 1: Tooling Praktis & Data Wrangling Industri',
       description: 'Pertajam kemampuan membersihkan dataset kotor dan kuasai SQL Window Functions yang sering ditanyakan di technical assessment.',
       targetSkills: ['SQL Window Functions', 'Pandas Data Wrangling', 'Data Cleaning'],
@@ -50,11 +63,13 @@ export const INITIAL_ANALYSIS_RESULT: SkillGapAnalysisResult = {
         },
       ],
       miniProjectPrompt: 'Unduh dataset transaksi e-commerce publik (misal Olist Brasil atau Tokopedia anonymized) dan bersihkan data nilai null/anomali menggunakan Python.',
-      isCompleted: true,
     },
     {
       id: 'phase-2',
-      phase: 2,
+      phase: 'Bulan 2: Visualisasi Interaktif & Dashboarding Bisnis',
+      focus: 'Membangun dashboard visual yang dapat dioperasikan langsung oleh manajer bisnis',
+      skillsToLearn: ['Looker Studio / Tableau', 'Client Communication', 'Business KPI Dashboarding'],
+      recommendedMicroInternship: 'Rancang dashboard penjualan interaktif di Google Looker Studio untuk UMKM ritel',
       title: 'Fase 2: Eksekusi Proyek Mikro Riil untuk UMKM / Startup',
       description: 'Lamar tugas mini 1-2 minggu di Micro-Internship Hub Gasterus untuk membangun dashboard analitik bagi pemilik bisnis.',
       targetSkills: ['Looker Studio / Tableau', 'Client Communication', 'Business KPI Dashboarding'],
@@ -74,11 +89,13 @@ export const INITIAL_ANALYSIS_RESULT: SkillGapAnalysisResult = {
         },
       ],
       miniProjectPrompt: 'Kirim proposal ke UMKM di Gasterus Hub (misal: Kedai Kopi Kenangan Senja), susun dashboard visual penjualan, dan klaim sertifikat terverifikasi.',
-      isCompleted: false,
     },
     {
       id: 'phase-3',
-      phase: 3,
+      phase: 'Bulan 3: Personal Branding & Wawancara Metode STAR',
+      focus: 'Mengemas portofolio proyek mikro dan latihan wawancara berbasis dampak bisnis',
+      skillsToLearn: ['STAR Method Storytelling', 'Portfolio Case Study Writing', 'Pitching Metrik Bisnis'],
+      recommendedMicroInternship: 'Publikasi studi kasus proyek mikro ke GitHub/LinkedIn',
       title: 'Fase 3: Personal Branding & Wawancara Metode STAR',
       description: 'Kemas hasil micro-internship ke dalam studi kasus GitHub/LinkedIn dan latih jawaban interview bersama Mentor AI Gasterus.',
       targetSkills: ['STAR Method Storytelling', 'Portfolio Case Study Writing', 'Pitching Metrik Bisnis'],
@@ -92,10 +109,10 @@ export const INITIAL_ANALYSIS_RESULT: SkillGapAnalysisResult = {
         },
       ],
       miniProjectPrompt: 'Tulis ringkasan studi kasus 300 kata tentang bagaimana dashboardmu membantu UMKM meningkatkan omzet atau efisiensi waktu operasional.',
-      isCompleted: false,
     },
   ],
 };
+
 
 export const POPULAR_MAJORS = [
   'Sistem Informasi',

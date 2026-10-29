@@ -45,21 +45,26 @@ export const RoadmapView: React.FC<RoadmapViewProps> = ({
   };
 
   const milestones = analysisResult?.roadmap || [];
-  const completedCount = milestones.filter((m) => completedMilestones.includes(m.id)).length;
+  const completedCount = milestones.filter((m, i) => {
+    const id = m.id || `phase-${i + 1}`;
+    return completedMilestones.includes(id);
+  }).length;
   const progressPercent = milestones.length > 0 ? Math.round((completedCount / milestones.length) * 100) : 0;
 
   const copyRoadmap = () => {
     if (!analysisResult) return;
     const text = `🎯 Roadmap Karier Gasterus untuk ${userProfile.name}
-Target: ${userProfile.dreamJob} (${userProfile.major})
-Match Rate: ${analysisResult.matchScore}%
+Target: ${userProfile.dreamJob} (${userProfile.major} di ${userProfile.university})
+Match Rate: ${analysisResult.matchPercentage ?? analysisResult.matchScore}%
 
 Langkah Belajar:
 ${milestones
-  .map(
-    (m, i) =>
-      `${i + 1}. ${m.title} (~${m.estimatedWeeks} minggu)\n   Skills: ${m.targetSkills.join(', ')}\n   Proyek: ${m.miniProjectPrompt}`
-  )
+  .map((m, i) => {
+    const skills = m.targetSkills || m.skillsToLearn || [];
+    const desc = m.focus || m.description || '';
+    const task = m.recommendedMicroInternship || m.miniProjectPrompt || '';
+    return `${i + 1}. ${m.phase || m.title} (~${m.estimatedWeeks || 2} minggu)\n   Fokus: ${desc}\n   Skills: ${skills.join(', ')}\n   Proyek Mikro: ${task}`;
+  })
   .join('\n\n')}
 
 Dibuat via Gasterus (DevFest 2026)`;
@@ -101,10 +106,10 @@ Dibuat via Gasterus (DevFest 2026)`;
               <span>Personalized Career Roadmap</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-              Roadmap Akselerasi: Menuju {userProfile.dreamJob}
+              Roadmap Akselerasi: Menuju {analysisResult.targetRole || userProfile.dreamJob}
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 mt-1">
-              Jembatan terstruktur untuk menutup celah dari perkuliahan {userProfile.major} ke standar kualifikasi industri.
+              Jembatan kurikulum {userProfile.major} di {analysisResult.university || userProfile.university} ke standar industri riil.
             </p>
           </div>
 
@@ -147,12 +152,18 @@ Dibuat via Gasterus (DevFest 2026)`;
       {/* Step by Step Timeline List */}
       <div className="space-y-6">
         {milestones.map((milestone, idx) => {
-          const isDone = completedMilestones.includes(milestone.id);
-          const isExpanded = expandedMilestones[milestone.id] !== false;
+          const milestoneId = milestone.id || `phase-${idx + 1}`;
+          const isDone = completedMilestones.includes(milestoneId);
+          const isExpanded = expandedMilestones[milestoneId] !== false;
+          const skills = milestone.targetSkills || milestone.skillsToLearn || [];
+          const phaseTitle = milestone.title || milestone.phase;
+          const phaseDesc = milestone.focus || milestone.description;
+          const microTask = milestone.recommendedMicroInternship || milestone.miniProjectPrompt;
+          const estimatedWeeks = milestone.estimatedWeeks || (idx === 2 ? 1 : 2);
 
           return (
             <div
-              key={milestone.id || idx}
+              key={milestoneId}
               className={`rounded-2xl border transition-all duration-300 overflow-hidden ${
                 isDone
                   ? 'bg-slate-900/60 border-emerald-500/30 shadow-emerald-500/5'
@@ -163,7 +174,7 @@ Dibuat via Gasterus (DevFest 2026)`;
               <div className="p-5 flex items-start justify-between gap-4">
                 <div className="flex items-start gap-4">
                   <button
-                    onClick={() => onToggleMilestone(milestone.id)}
+                    onClick={() => onToggleMilestone(milestoneId)}
                     className="mt-0.5 text-slate-400 hover:text-emerald-400 transition-colors"
                     title={isDone ? 'Tandai belum selesai' : 'Tandai fase selesai'}
                   >
@@ -177,11 +188,11 @@ Dibuat via Gasterus (DevFest 2026)`;
                   <div>
                     <div className="flex flex-wrap items-center gap-2 mb-1">
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                        FASE {milestone.phase || idx + 1}
+                        {milestone.phase || `FASE ${idx + 1}`}
                       </span>
                       <span className="flex items-center gap-1 text-[11px] text-slate-400">
                         <Clock className="w-3 h-3 text-amber-400" />
-                        <span>Estimasi: {milestone.estimatedWeeks} Minggu</span>
+                        <span>Estimasi: {estimatedWeeks} Minggu</span>
                       </span>
                       {isDone && (
                         <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
@@ -190,16 +201,16 @@ Dibuat via Gasterus (DevFest 2026)`;
                       )}
                     </div>
                     <h3 className={`text-base sm:text-lg font-bold ${isDone ? 'text-emerald-200 line-through' : 'text-white'}`}>
-                      {milestone.title}
+                      {phaseTitle}
                     </h3>
                     <p className="text-xs sm:text-sm text-slate-300 mt-1">
-                      {milestone.description}
+                      {phaseDesc}
                     </p>
                   </div>
                 </div>
 
                 <button
-                  onClick={() => toggleExpand(milestone.id)}
+                  onClick={() => toggleExpand(milestoneId)}
                   className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white"
                   aria-label="Toggle detail"
                 >
@@ -211,32 +222,36 @@ Dibuat via Gasterus (DevFest 2026)`;
               {isExpanded && (
                 <div className="px-5 pb-5 pt-2 border-t border-slate-800/60 space-y-4 bg-slate-950/40">
                   {/* Target Skills */}
-                  <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                      Fokus Keterampilan yang Ditargetkan:
+                  {skills.length > 0 && (
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                        Fokus Keterampilan yang Ditargetkan:
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {skills.map((s, i) => (
+                          <span
+                            key={i}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-indigo-300 border border-slate-700"
+                          >
+                            {s}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {milestone.targetSkills.map((s, i) => (
-                        <span
-                          key={i}
-                          className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-indigo-300 border border-slate-700"
-                        >
-                          {s}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+                  )}
 
-                  {/* Hands-on Mini Project Prompt */}
-                  <div className="p-3.5 rounded-xl bg-indigo-950/30 border border-indigo-500/30">
-                    <div className="flex items-center gap-2 text-xs font-bold text-amber-300 mb-1">
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>Tantangan Proyek Nyata (Portofolio Enabler):</span>
+                  {/* Hands-on Mini Project Prompt / Recommended Micro Internship */}
+                  {microTask && (
+                    <div className="p-3.5 rounded-xl bg-indigo-950/30 border border-indigo-500/30 space-y-1">
+                      <div className="flex items-center gap-2 text-xs font-bold text-amber-300">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Rekomendasi Proyek Mikro Portofolio (Gasterus Hub):</span>
+                      </div>
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        {microTask}
+                      </p>
                     </div>
-                    <p className="text-xs text-slate-300 leading-relaxed">
-                      {milestone.miniProjectPrompt}
-                    </p>
-                  </div>
+                  )}
 
                   {/* Recommended Resources */}
                   {milestone.recommendedResources && milestone.recommendedResources.length > 0 && (
@@ -278,7 +293,7 @@ Dibuat via Gasterus (DevFest 2026)`;
                   {/* Action row */}
                   <div className="flex items-center justify-between pt-2">
                     <button
-                      onClick={() => onToggleMilestone(milestone.id)}
+                      onClick={() => onToggleMilestone(milestoneId)}
                       className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${
                         isDone
                           ? 'bg-slate-800 text-slate-300 border-slate-700'
@@ -290,8 +305,8 @@ Dibuat via Gasterus (DevFest 2026)`;
 
                     <button
                       onClick={() => {
-                        if (milestone.targetSkills[0] && onFilterMicroInternshipsByTag) {
-                          onFilterMicroInternshipsByTag(milestone.targetSkills[0]);
+                        if (skills[0] && onFilterMicroInternshipsByTag) {
+                          onFilterMicroInternshipsByTag(skills[0]);
                         }
                         onNavigateTab('internships');
                       }}

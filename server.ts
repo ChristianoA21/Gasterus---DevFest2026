@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI, Type } from '@google/genai';
+import { generateContextualGapAnalysis } from './src/utils/skillGapCalculator.ts';
 
 dotenv.config();
 
@@ -43,7 +44,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number = 6000): Promise<T> {
 
 // Endpoint: AI Skill Gap Analyzer & Roadmap Generator
 app.post('/api/gemini/analyze-gap', async (req: Request, res: Response) => {
-  const { major, university, semester, dreamJob, currentSkills, studyHoursPerWeek } = req.body;
+  const { major, university, semester, dreamJob, currentSkills, studyHoursPerWeek, namaKampus, jurusan, targetRole } = req.body;
+
+  const actualUniversity = (namaKampus || university || 'Universitas Indonesia').trim();
+  const actualMajor = (jurusan || major || 'Sistem Informasi').trim();
+  const actualTargetRole = (targetRole || dreamJob || 'Data Analyst & BI Specialist').trim();
 
   try {
     if (!hasValidApiKey) {
@@ -51,52 +56,69 @@ app.post('/api/gemini/analyze-gap', async (req: Request, res: Response) => {
     }
 
     const prompt = `Kamu adalah AI Skill Gap Analyzer & Senior Career Strategist untuk platform "Gasterus" (DevFest 2026).
-Tugasmu adalah menganalisis kesenjangan keterampilan (Skill Gap) antara kurikulum standar perkuliahan di Indonesia dengan standar kualifikasi industri kerja riil untuk tahun 2026.
+Tugasmu adalah menganalisis kesenjangan keterampilan (Skill Gap) secara KONTEKSTUAL terhadap nama kampus tempat mahasiswa berkuliah dibandingkan kebutuhan industri kerja nyata 2026.
 
-Profil Mahasiswa:
-- Universitas: ${university || 'Universitas di Indonesia'}
-- Jurusan: ${major} (Semester ${semester || 6})
-- Pekerjaan Impian: ${dreamJob}
-- Keterampilan yang Dimiliki Saat Ini: ${(currentSkills || []).join(', ')}
-- Alokasi Belajar Mandiri: ${studyHoursPerWeek || 10} jam/minggu
+Parameter Mahasiswa:
+- Nama Kampus: ${actualUniversity}
+- Jurusan: ${actualMajor}
+- Target Pekerjaan (Target Role): ${actualTargetRole}
+- Semester: ${semester || 6}
+- Keterampilan Saat Ini: ${(currentSkills || []).join(', ') || 'Standar perkuliahan'}
 
-Format Output HARUS berupa JSON valid dengan skema berikut:
-{
-  "matchScore": number (0-100, estimasi persentase kecocokan skill saat ini dengan kebutuhan industri),
-  "summary": string (2-3 kalimat tajam mengapa gap ini terjadi antara kampus dan industri),
-  "readinessTier": string ("Siap Kerja Mandiri" | "Siap Micro-Internship" | "Butuh Fondasi Portofolio" | "Tahap Eksplorasi"),
-  "academicStrongPoints": string[] (3-4 skill akademik yang sudah dipelajari dan tetap berguna),
-  "criticalGaps": string[] (4-6 skill spesifik industri yang TIDAK diajarkan di kampus tapi wajib di pekerjaan impian),
-  "industryInsights": string (wawasan pasar kerja Indonesia terkini tentang ekspektasi tech stack & portofolio),
-  "suggestedMicroInternshipTags": string[] (4-6 tag jenis proyek mikro yang cocok dikerjakan sekarang untuk menutup gap),
-  "roadmap": [
-    {
-      "id": string,
-      "phase": number (1, 2, 3, dst.),
-      "title": string,
-      "description": string,
-      "targetSkills": string[],
-      "estimatedWeeks": number,
-      "recommendedResources": [
-        {
-          "title": string,
-          "type": "course" | "doc" | "youtube" | "project",
-          "url": string,
-          "isFree": boolean
-        }
-      ],
-      "miniProjectPrompt": string (ide proyek nyata yang bisa dijadikan portofolio)
-    }
-  ]
-}`;
+ATURAN WAJIB EVALUASI KONTEKSTUAL KAMPUS:
+1. Kampus Ternama / Akreditasi Unggul (contoh: ITB, UI, UGM, BINUS, ITS, Unair, Telkom University, Undip, Unpad, IPB, UB, UII, dll.):
+   - Kurikulum biasanya lebih diperbarui dan memiliki kemitraan industri aktif.
+   - Match Percentage kesiapan kerja rata-rata WAJIB berada di kisaran 60% - 78%.
+   - Kekurangan/Gap lebih berfokus pada soft skills, real-world production experience, scale, atau niche tools industri terkini.
+   - curriculumAnalysis harus mengapresiasi reputasi kurikulum ${actualUniversity} sekaligus memaparkan tantangan adaptasi produksi riil.
+
+2. Kampus Lokal / Kurang Dikenal / Daerah:
+   - Kurikulum cenderung teoretis, berbasis silabus lama, atau minim integrasi teknologi industri terbaru.
+   - Match Percentage kesiapan kerja rata-rata WAJIB berada di kisaran 35% - 55%.
+   - Kekurangan/Gap mencakup kerangka kerja (framework) modern, best practices, version control (Git), serta proyek praktis nyata.
+   - curriculumAnalysis harus memaparkan secara objektif mengapa kurikulum ${actualUniversity} tertinggal dari standar industri 2026 dan bagaimana mahasiswa harus mengejar materi.
+
+Format output HARUS mengikuti responseSchema JSON yang telah ditentukan.`;
+
+    const skillRoadmapResponseSchema = {
+      type: Type.OBJECT,
+      properties: {
+        university: { type: Type.STRING },
+        targetRole: { type: Type.STRING },
+        matchPercentage: { type: Type.INTEGER },
+        curriculumAnalysis: { type: Type.STRING },
+        missingSkills: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING },
+        },
+        roadmap: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              phase: { type: Type.STRING },
+              focus: { type: Type.STRING },
+              skillsToLearn: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+              },
+              recommendedMicroInternship: { type: Type.STRING },
+            },
+            required: ['phase', 'focus', 'skillsToLearn', 'recommendedMicroInternship'],
+          },
+        },
+      },
+      required: ['university', 'targetRole', 'matchPercentage', 'curriculumAnalysis', 'missingSkills', 'roadmap'],
+    };
 
     const response = await withTimeout(
       ai.models.generateContent({
         model: 'gemini-3.8-flash',
         contents: prompt,
         config: {
-          systemInstruction: 'Kamu adalah konsultan kurikulum industri & tech lead Indonesia yang objektif, ramah Gen-Z, dan realistis. Jawab dalam bahasa Indonesia profesional namun asik.',
+          systemInstruction: 'Kamu adalah konsultan kurikulum & tech recruiter senior Indonesia. Jawab secara objektif, mendalam, dan patuhi rentang match percentage sesuai kategori kampus.',
           responseMimeType: 'application/json',
+          responseSchema: skillRoadmapResponseSchema,
         },
       }),
       8000
@@ -104,23 +126,25 @@ Format Output HARUS berupa JSON valid dengan skema berikut:
 
     const text = response.text || '{}';
     const parsedData = JSON.parse(text);
-    return res.json({ success: true, data: parsedData, source: 'gemini-live' });
-  } catch (error: any) {
-    console.warn('Fallback to deterministic Skill Gap response:', error?.message);
 
-    // High quality deterministic fallback matching PRD
-    const fallbackResult = generateDeterministicGapAnalysis(
-      major || 'Sistem Informasi',
-      dreamJob || 'Data Analyst & BI Specialist',
-      currentSkills || ['SQL', 'Python Dasar', 'Microsoft Excel'],
-      studyHoursPerWeek || 10
+    // Normalize and enrich for UI compatibility
+    const enrichedData = enrichRoadmapData(parsedData, actualUniversity, actualMajor, actualTargetRole);
+
+    return res.json({ success: true, data: enrichedData, source: 'gemini-live' });
+  } catch (error: any) {
+    console.warn('Fallback to contextual gap analysis:', error?.message);
+
+    const fallbackResult = generateContextualGapAnalysis(
+      actualUniversity,
+      actualMajor,
+      actualTargetRole
     );
 
     return res.json({
       success: true,
       data: fallbackResult,
-      source: 'smart-engine-fallback',
-      note: 'Analisis disajikan menggunakan Engine Pengetahuan Industri Gasterus.',
+      source: 'contextual-campus-engine',
+      note: `Analisis kontekstual kampus ${actualUniversity} disajikan oleh Engine Gasterus.`,
     });
   }
 });
@@ -186,6 +210,53 @@ Jika relevan, sertakan 2 rekomendasi langkah aksi cepat berpoin.`;
     });
   }
 });
+
+function enrichRoadmapData(
+  parsedData: any,
+  actualUniversity: string,
+  actualMajor: string,
+  actualTargetRole: string
+) {
+  const matchPercentage = typeof parsedData.matchPercentage === 'number' ? parsedData.matchPercentage : 50;
+  const missingSkills = Array.isArray(parsedData.missingSkills) ? parsedData.missingSkills : ['Git', 'Modern Frameworks', 'Production Experience'];
+  const rawRoadmap = Array.isArray(parsedData.roadmap) ? parsedData.roadmap : [];
+
+  const enrichedRoadmap = rawRoadmap.map((item: any, idx: number) => {
+    const skills = Array.isArray(item.skillsToLearn) ? item.skillsToLearn : (Array.isArray(item.targetSkills) ? item.targetSkills : []);
+    return {
+      phase: item.phase || `Fase ${idx + 1}`,
+      focus: item.focus || item.description || 'Peningkatan kompetensi praktis',
+      skillsToLearn: skills,
+      recommendedMicroInternship: item.recommendedMicroInternship || item.miniProjectPrompt || 'Proyek mikro UMKM',
+      id: item.id || `phase-${idx + 1}`,
+      title: item.title || item.phase || `Fase ${idx + 1}`,
+      description: item.description || item.focus || 'Peningkatan kompetensi praktis',
+      targetSkills: skills,
+      estimatedWeeks: item.estimatedWeeks || (idx === 2 ? 1 : 2),
+      miniProjectPrompt: item.miniProjectPrompt || item.recommendedMicroInternship || 'Selesaikan proyek riil portofolio',
+    };
+  });
+
+  return {
+    university: parsedData.university || actualUniversity,
+    targetRole: parsedData.targetRole || actualTargetRole,
+    matchPercentage,
+    matchScore: matchPercentage,
+    curriculumAnalysis: parsedData.curriculumAnalysis || `Analisis kesiapan ${actualMajor} di ${actualUniversity} untuk peran ${actualTargetRole}.`,
+    summary: parsedData.curriculumAnalysis || `Analisis kesiapan ${actualMajor} di ${actualUniversity}.`,
+    missingSkills,
+    criticalGaps: missingSkills,
+    academicStrongPoints: [
+      `Fondasi Teori Akademik ${actualMajor}`,
+      `Studi Kasus & Mata Kuliah Inti ${actualUniversity}`,
+      'Kemampuan Analisis Konseptual',
+    ],
+    readinessTier: matchPercentage >= 65 ? 'Siap Micro-Internship' : matchPercentage >= 40 ? 'Butuh Fondasi Portofolio' : 'Tahap Eksplorasi',
+    industryInsights: `Kebutuhan industri untuk peran ${actualTargetRole} menuntut bukti portofolio nyata dan jam terbang teknis di luar silabus kampus.`,
+    roadmap: enrichedRoadmap,
+    suggestedMicroInternshipTags: missingSkills.slice(0, 4),
+  };
+}
 
 // Deterministic generator functions for zero-failure resilience
 function generateDeterministicGapAnalysis(
