@@ -9,9 +9,18 @@ import {
   Menu, 
   X, 
   Award,
-  ChevronRight
+  ChevronRight,
+  ShieldCheck,
+  Building2,
+  GraduationCap,
+  Users,
+  Activity,
+  BarChart3,
+  CheckCircle2,
+  ChevronDown
 } from 'lucide-react';
-import { NavigationTab, UserProfile } from '../types';
+import { NavigationTab, UserProfile, UserRole } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 interface NavbarProps {
   activeTab: NavigationTab;
@@ -19,6 +28,7 @@ interface NavbarProps {
   userProfile: UserProfile;
   activeApplicationsCount: number;
   onOpenProfile: () => void;
+  onOpenRoleModal: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -27,37 +37,102 @@ export const Navbar: React.FC<NavbarProps> = ({
   userProfile,
   activeApplicationsCount,
   onOpenProfile,
+  onOpenRoleModal,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { currentRole, currentAccount, switchRole } = useAuth();
 
-  const navItems: { id: NavigationTab; label: string; icon: React.ReactNode; badge?: number }[] = [
-    {
-      id: 'analyzer',
-      label: 'AI Skill Gap',
-      icon: <Sparkles className="w-4 h-4" />,
-    },
-    {
-      id: 'roadmap',
-      label: 'Roadmap Belajar',
-      icon: <MapPin className="w-4 h-4" />,
-    },
-    {
-      id: 'internships',
-      label: 'Micro-Internship Hub',
-      icon: <Briefcase className="w-4 h-4" />,
-    },
-    {
-      id: 'workspace',
-      label: 'Workspace & Portofolio',
-      icon: <FolderKanban className="w-4 h-4" />,
-      badge: activeApplicationsCount > 0 ? activeApplicationsCount : undefined,
-    },
-    {
-      id: 'mentor',
-      label: 'AI Career Mentor',
-      icon: <Bot className="w-4 h-4" />,
-    },
-  ];
+  // Navigation Items defined per Role
+  const getNavItems = () => {
+    if (currentRole === 'umkm') {
+      return [
+        {
+          id: 'umkm-dashboard' as NavigationTab,
+          label: 'Ringkasan UMKM',
+          icon: <Building2 className="w-4 h-4" />,
+        },
+        {
+          id: 'umkm-projects' as NavigationTab,
+          label: 'Kelola Lowongan',
+          icon: <Briefcase className="w-4 h-4" />,
+        },
+        {
+          id: 'umkm-candidates' as NavigationTab,
+          label: 'Review Pelamar',
+          icon: <Users className="w-4 h-4" />,
+          badge: 5,
+        },
+      ];
+    }
+
+    if (currentRole === 'admin') {
+      return [
+        {
+          id: 'admin-dashboard' as NavigationTab,
+          label: 'Overview Metrik',
+          icon: <BarChart3 className="w-4 h-4" />,
+        },
+        {
+          id: 'admin-moderation' as NavigationTab,
+          label: 'Moderasi Kampus & UMKM',
+          icon: <ShieldCheck className="w-4 h-4" />,
+        },
+        {
+          id: 'admin-certificates' as NavigationTab,
+          label: 'Audit Sertifikat',
+          icon: <Award className="w-4 h-4" />,
+        },
+        {
+          id: 'admin-logs' as NavigationTab,
+          label: 'Log Aktivitas',
+          icon: <Activity className="w-4 h-4" />,
+        },
+      ];
+    }
+
+    // Default: Role Mahasiswa
+    return [
+      {
+        id: 'analyzer' as NavigationTab,
+        label: 'AI Skill Gap',
+        icon: <Sparkles className="w-4 h-4" />,
+      },
+      {
+        id: 'roadmap' as NavigationTab,
+        label: 'Roadmap Belajar',
+        icon: <MapPin className="w-4 h-4" />,
+      },
+      {
+        id: 'internships' as NavigationTab,
+        label: 'Micro-Internship Hub',
+        icon: <Briefcase className="w-4 h-4" />,
+      },
+      {
+        id: 'workspace' as NavigationTab,
+        label: 'Workspace Saya',
+        icon: <FolderKanban className="w-4 h-4" />,
+        badge: activeApplicationsCount > 0 ? activeApplicationsCount : undefined,
+      },
+      {
+        id: 'mentor' as NavigationTab,
+        label: 'AI Career Mentor',
+        icon: <Bot className="w-4 h-4" />,
+      },
+    ];
+  };
+
+  const navItems = getNavItems();
+
+  const handleRoleQuickSwitch = (role: UserRole) => {
+    switchRole(role);
+    if (role === 'mahasiswa') {
+      setActiveTab('analyzer');
+    } else if (role === 'umkm') {
+      setActiveTab('umkm-dashboard');
+    } else if (role === 'admin') {
+      setActiveTab('admin-dashboard');
+    }
+  };
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-800 bg-slate-950/85 backdrop-blur-md">
@@ -66,7 +141,11 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Logo Brand */}
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setActiveTab('analyzer')}
+              onClick={() => {
+                if (currentRole === 'mahasiswa') setActiveTab('analyzer');
+                else if (currentRole === 'umkm') setActiveTab('umkm-dashboard');
+                else setActiveTab('admin-dashboard');
+              }}
               className="flex items-center gap-2.5 text-left group transition-all"
             >
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 via-blue-600 to-amber-500 p-0.5 shadow-lg shadow-indigo-500/20 group-hover:scale-105 transition-transform">
@@ -85,7 +164,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     DevFest 2026
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-400 hidden sm:block">
+                <p className="text-[11px] text-slate-400 hidden xl:block">
                   Bridging Academic Gap to Industry Impact
                 </p>
               </div>
@@ -100,13 +179,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className={`relative flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${
+                  className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                     isActive
-                      ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/40 shadow-sm shadow-indigo-500/10'
+                      ? currentRole === 'umkm'
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm shadow-amber-500/10'
+                        : currentRole === 'admin'
+                        ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-sm shadow-purple-500/10'
+                        : 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/40 shadow-sm shadow-indigo-500/10'
                       : 'text-slate-300 hover:text-white hover:bg-slate-800/60 border border-transparent'
                   }`}
                 >
-                  <span className={isActive ? 'text-indigo-400' : 'text-slate-400'}>
+                  <span className={isActive ? (currentRole === 'umkm' ? 'text-amber-400' : currentRole === 'admin' ? 'text-purple-400' : 'text-indigo-400') : 'text-slate-400'}>
                     {item.icon}
                   </span>
                   <span>{item.label}</span>
@@ -120,25 +203,71 @@ export const Navbar: React.FC<NavbarProps> = ({
             })}
           </nav>
 
-          {/* User Profile Quick Trigger */}
+          {/* Role Switcher Pill Bar & User Avatar */}
           <div className="hidden sm:flex items-center gap-3">
+            {/* Quick 1-Click Role Switcher Pills */}
+            <div className="flex items-center bg-slate-900 border border-slate-800 p-0.5 rounded-xl shadow-inner">
+              <button
+                type="button"
+                onClick={() => handleRoleQuickSwitch('mahasiswa')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                  currentRole === 'mahasiswa'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+                title="Beralih ke peran Mahasiswa"
+              >
+                <GraduationCap className="w-3.5 h-3.5" />
+                <span>Mahasiswa</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleRoleQuickSwitch('umkm')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                  currentRole === 'umkm'
+                    ? 'bg-amber-500 text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+                title="Beralih ke peran Mitra UMKM"
+              >
+                <Building2 className="w-3.5 h-3.5" />
+                <span>UMKM</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleRoleQuickSwitch('admin')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                  currentRole === 'admin'
+                    ? 'bg-purple-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+                title="Beralih ke peran Admin Platform"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Admin</span>
+              </button>
+            </div>
+
+            {/* Profile Trigger */}
             <button
-              onClick={onOpenProfile}
-              className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-800/70 transition-all text-left"
-              title="Klik untuk mengubah profil mahasiswa"
+              onClick={onOpenRoleModal}
+              className="flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-800/70 transition-all text-left"
+              title="Klik untuk memilih profil demo atau melihat detail peran"
             >
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-amber-500 p-0.5 flex items-center justify-center">
-                <div className="w-full h-full bg-slate-950 rounded-full flex items-center justify-center text-xs font-bold text-amber-300">
-                  {userProfile.name.charAt(0)}
-                </div>
-              </div>
+              <img
+                src={currentAccount.avatarUrl}
+                alt={currentAccount.name}
+                className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-700"
+              />
               <div className="text-left leading-tight">
                 <div className="text-xs font-semibold text-slate-200 flex items-center gap-1">
-                  {userProfile.name}
-                  <ChevronRight className="w-3 h-3 text-slate-400" />
+                  <span className="truncate max-w-[100px]">{currentAccount.name.split(' ')[0]}</span>
+                  <ChevronDown className="w-3 h-3 text-slate-400" />
                 </div>
-                <div className="text-[10px] text-slate-400 truncate max-w-[120px]">
-                  {userProfile.major}
+                <div className="text-[10px] text-slate-400 truncate max-w-[100px]">
+                  {currentRole === 'mahasiswa' ? 'Mahasiswa' : currentRole === 'umkm' ? 'Mitra UMKM' : 'Super Admin'}
                 </div>
               </div>
             </button>
@@ -159,44 +288,100 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-b border-slate-800 bg-slate-950/95 px-4 pt-2 pb-4 space-y-1">
-          {navItems.map((item) => {
-            const isActive = activeTab === item.id;
-            return (
+        <div className="lg:hidden border-b border-slate-800 bg-slate-950/95 px-4 pt-2 pb-4 space-y-3">
+          {/* Mobile Role Switcher */}
+          <div className="p-2 bg-slate-900 rounded-xl border border-slate-800">
+            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 px-1">
+              Peran Aktif:
+            </div>
+            <div className="grid grid-cols-3 gap-1">
               <button
-                key={item.id}
                 onClick={() => {
-                  setActiveTab(item.id);
+                  handleRoleQuickSwitch('mahasiswa');
                   setMobileMenuOpen(false);
                 }}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
-                    : 'text-slate-300 hover:bg-slate-800'
+                className={`py-1.5 px-2 rounded-lg text-xs font-bold text-center ${
+                  currentRole === 'mahasiswa' ? 'bg-indigo-600 text-white' : 'text-slate-400 bg-slate-950'
                 }`}
               >
-                <div className="flex items-center gap-2.5">
-                  {item.icon}
-                  <span>{item.label}</span>
-                </div>
-                {item.badge !== undefined && (
-                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-slate-950">
-                    {item.badge}
-                  </span>
-                )}
+                🎓 Mahasiswa
               </button>
-            );
-          })}
-          <div className="pt-2 border-t border-slate-800 mt-2">
+              <button
+                onClick={() => {
+                  handleRoleQuickSwitch('umkm');
+                  setMobileMenuOpen(false);
+                }}
+                className={`py-1.5 px-2 rounded-lg text-xs font-bold text-center ${
+                  currentRole === 'umkm' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 bg-slate-950'
+                }`}
+              >
+                🏢 UMKM
+              </button>
+              <button
+                onClick={() => {
+                  handleRoleQuickSwitch('admin');
+                  setMobileMenuOpen(false);
+                }}
+                className={`py-1.5 px-2 rounded-lg text-xs font-bold text-center ${
+                  currentRole === 'admin' ? 'bg-purple-600 text-white' : 'text-slate-400 bg-slate-950'
+                }`}
+              >
+                🛡️ Admin
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            {navItems.map((item) => {
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? currentRole === 'umkm'
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        : currentRole === 'admin'
+                        ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                        : 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
+                      : 'text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </div>
+                  {item.badge !== undefined && (
+                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-slate-950">
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="pt-2 border-t border-slate-800">
             <button
               onClick={() => {
-                onOpenProfile();
+                onOpenRoleModal();
                 setMobileMenuOpen(false);
               }}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-900 text-xs text-slate-300 hover:bg-slate-800"
+              className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-slate-900 text-xs text-slate-300 hover:bg-slate-800"
             >
-              <User className="w-4 h-4 text-indigo-400" />
-              <span>Profil: {userProfile.name} ({userProfile.major})</span>
+              <div className="flex items-center gap-2">
+                <img
+                  src={currentAccount.avatarUrl}
+                  alt={currentAccount.name}
+                  className="w-5 h-5 rounded-full object-cover"
+                />
+                <span>{currentAccount.name} ({currentAccount.roleTitle})</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-400" />
             </button>
           </div>
         </div>

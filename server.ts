@@ -110,30 +110,58 @@ Format output HARUS mengikuti responseSchema JSON yang telah ditentukan.`;
       },
       required: ['university', 'targetRole', 'matchPercentage', 'curriculumAnalysis', 'missingSkills', 'roadmap'],
     };
+    // Try primary model gemini-3.8-flash, with automatic fallback to gemini-3.1-flash-lite on quota limits
+    let responseText = '';
+    try {
+      const response = await withTimeout(
+        ai.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: prompt,
+          config: {
+            systemInstruction: 'Kamu adalah konsultan kurikulum & tech recruiter senior Indonesia. Jawab secara objektif, mendalam, dan patuhi rentang match percentage sesuai kategori kampus.',
+            responseMimeType: 'application/json',
+            responseSchema: skillRoadmapResponseSchema,
+          },
+        }),
+        8000
+      );
+      responseText = response.text || '';
+    } catch (primaryErr: any) {
+      // If 429 quota exceeded on 3.8-flash, try 3.1-flash-lite
+      const isQuota = primaryErr?.status === 429 || String(primaryErr?.message || '').includes('429') || String(primaryErr?.message || '').includes('quota');
+      if (isQuota) {
+        try {
+          const responseLite = await withTimeout(
+            ai.models.generateContent({
+              model: 'gemini-3.1-flash-lite',
+              contents: prompt,
+              config: {
+                systemInstruction: 'Kamu adalah konsultan kurikulum & tech recruiter senior Indonesia. Jawab secara objektif, mendalam, dan patuhi rentang match percentage sesuai kategori kampus.',
+                responseMimeType: 'application/json',
+                responseSchema: skillRoadmapResponseSchema,
+              },
+            }),
+            6000
+          );
+          responseText = responseLite.text || '';
+        } catch {
+          // Proceed to smart engine fallback
+        }
+      }
+    }
 
-    const response = await withTimeout(
-      ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: prompt,
-        config: {
-          systemInstruction: 'Kamu adalah konsultan kurikulum & tech recruiter senior Indonesia. Jawab secara objektif, mendalam, dan patuhi rentang match percentage sesuai kategori kampus.',
-          responseMimeType: 'application/json',
-          responseSchema: skillRoadmapResponseSchema,
-        },
-      }),
-      8000
-    );
+    if (!responseText) {
+      throw new Error('LocalEngineFallback');
+    }
 
-    const text = response.text || '{}';
-    const parsedData = JSON.parse(text);
+    const parsedData = JSON.parse(responseText);
 
     // Normalize and enrich for UI compatibility
     const enrichedData = enrichRoadmapData(parsedData, actualUniversity, actualMajor, actualTargetRole);
 
     return res.json({ success: true, data: enrichedData, source: 'gemini-live' });
-  } catch (error: any) {
-    console.warn('Fallback to contextual gap analysis:', error?.message);
-
+  } catch (_error: any) {
+    // Graceful fallback without noisy logs on quota limits
     const fallbackResult = generateContextualGapAnalysis(
       actualUniversity,
       actualMajor,
@@ -164,6 +192,7 @@ Gaya komunikasimu:
 - Kamu memahami secara mendalam keluh kesah mahasiswa: krisis percaya diri sebelum wisuda, paradoks portofolio (butuh pengalaman tapi belum punya portofolio), dan bingung action plan.
 - Kontekstual: Selalu hubungkan jawabanmu dengan profil mahasiswa saat ini:
   * Mahasiswa: ${userProfile?.name || 'Mahasiswa'}
+  * Kampus: ${userProfile?.university || 'Kampus Indonesia'}
   * Jurusan: ${userProfile?.major || 'Sistem Informasi'} (Semester ${userProfile?.semester || 6})
   * Target Karier: ${userProfile?.dreamJob || 'Data Analyst'}
   * Skill Saat Ini: ${(userProfile?.skills || []).join(', ')}
@@ -179,34 +208,58 @@ Jika relevan, sertakan 2 rekomendasi langkah aksi cepat berpoin.`;
       parts: [{ text: m.text }],
     }));
 
-    const response = await withTimeout(
-      ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: conversationContents,
-        config: {
-          systemInstruction,
-        },
-      }),
-      8000
-    );
+    let replyText = '';
+    try {
+      const response = await withTimeout(
+        ai.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: conversationContents,
+          config: {
+            systemInstruction,
+          },
+        }),
+        8000
+      );
+      replyText = response.text || '';
+    } catch (primaryErr: any) {
+      const isQuota = primaryErr?.status === 429 || String(primaryErr?.message || '').includes('429') || String(primaryErr?.message || '').includes('quota');
+      if (isQuota) {
+        try {
+          const responseLite = await withTimeout(
+            ai.models.generateContent({
+              model: 'gemini-3.1-flash-lite',
+              contents: conversationContents,
+              config: {
+                systemInstruction,
+              },
+            }),
+            6000
+          );
+          replyText = responseLite.text || '';
+        } catch {
+          // Proceed to smart mentor fallback
+        }
+      }
+    }
 
-    const replyText = response.text || 'Semangat terus mengasah skill! Apa lagi yang ingin kamu diskusikan?';
+    if (!replyText) {
+      throw new Error('LocalMentorFallback');
+    }
 
     return res.json({
       success: true,
       reply: replyText,
       source: 'gemini-live',
     });
-  } catch (error: any) {
-    console.warn('Fallback to intelligent mentor reply:', error?.message);
-
+  } catch (_error: any) {
+    // Graceful fallback without noisy logs on quota limits
     const userLast = (messages && messages[messages.length - 1]?.text) || '';
     const fallbackReply = generateFallbackMentorReply(userLast, userProfile, currentAnalysis);
 
     return res.json({
       success: true,
       reply: fallbackReply,
-      source: 'smart-mentor-fallback',
+      source: 'smart-mentor-engine',
     });
   }
 });
@@ -372,45 +425,90 @@ function generateDeterministicGapAnalysis(
 
 function generateFallbackMentorReply(userPrompt: string, profile: any, analysis: any): string {
   const q = (userPrompt || '').toLowerCase();
+  const name = profile?.name || 'Kawan Mahasiswa';
+  const campus = profile?.university || 'Kampus Anda';
+  const major = profile?.major || 'Sistem Informasi';
+  const targetRole = profile?.dreamJob || 'Data Analyst';
+  const gaps = (analysis?.missingSkills || analysis?.criticalGaps || ['Perkakas Modern', 'Version Control Git']).join(', ');
 
-  if (q.includes('interview') || q.includes('wawancara')) {
-    return `Halo ${profile?.name || 'Kawan'}! Senang sekali kamu mempersiapkan wawancara kerja untuk posisi **${profile?.dreamJob || 'Data Analyst'}**.
+  // 1. Interview Simulation
+  if (q.includes('interview') || q.includes('wawancara') || q.includes('simulasi')) {
+    return `Halo ${name}! Senang sekali kamu mempersiapkan diri untuk wawancara teknis posisi **${targetRole}**.
 
-Berikut 3 tips emas untuk menjawab pertanyaan interviewer agar portofoliomu menonjol:
+Berikut adalah pertanyaan simulasi pertama yang paling sering diajukan rekruter:
 
-1. **Gunakan Kerangka STAR (Situation, Task, Action, Result):**
-   Saat ditanya pengalaman proyek, ceritakan tantangan riil yang dihadapi di kampus/micro-internship, tindakan teknis spesifik yang kamu ambil, dan hasil akhirnya secara konkret (misal: *"Dashboard Looker Studio yang saya buat memangkas waktu rekap data penjualan UMKM dari 3 jam jadi 10 menit"*).
+🎯 **Pertanyaan Teknis #1:**
+*"Di perkuliahan ${major} di ${campus}, kamu tentu sudah mempelajari teori fundamental. Bisakah kamu menceritakan satu tantangan teknis nyata yang pernah kamu hadapi saat menangani data/proyek yang kotor atau tidak terstruktur, dan bagaimana kamu menyelesaikannya?"*
 
-2. **Jujur Mengakui Batasan Skill, Tapi Tunjukkan Solusi Cepat:**
-   Jika ditanya teknologi yang belum kamu kuasai, jangan panik: *"Meskipun di perkuliahan belum diajarkan secara mendalam, saya sudah terbiasa belajar mandiri lewat roadmap Gasterus dan saat ini sedang aktif membuat studi kasus praktis."*
+💡 **Tips Cara Menjawab dengan Metode STAR (Situation, Task, Action, Result):**
+1. **Situation:** Jelaskan konteks tugas/proyek mini yang pernah kamu buat (misal: proyek micro-internship UMKM atau dataset transaksi publik).
+2. **Task:** Ceritakan problem spesifik (misal: data transaksi banyak duplikat dan missing values).
+3. **Action:** Sebutkan tool konkret yang kamu gunakan (misal: *"Saya menulis script pembersihan dengan Pandas dan menerapkan SQL Window Functions"*).
+4. **Result:** Tunjukkan dampak terukur (misal: *"Waktu rekapitulasi data terpangkas 70% dan laporan siap divisualisasikan di dashboard"*).
 
-3. **Tanyakan Balik Pertanyaan Berkualitas:**
-   Di akhir sesi, tanyakan: *"Tantangan teknologi atau metrik bisnis terbesar apa yang ingin diselesaikan oleh tim ini dalam 3 bulan ke depan?"* Ini menunjukkan kamu berpikir layaknya problem-solver industri!
-
-Mau kita coba simulasi pertanyaan teknis spesifik sekarang?`;
+Coba ketik draf jawabanmu di sini, saya akan bantu mereview dan memperbaikinya!`;
   }
 
-  if (q.includes('resume') || q.includes('cv') || q.includes('portofolio')) {
-    return `Bagus sekali kamu fokus ke portofolio! Banyak mahasiswa terjebak menulis tugas kuliah yang generik seperti "Membuat Laporan Paper Analisis". Di mata rekruter, itu kurang menarik.
+  // 2. Proposal / Pitching to UMKM
+  if (q.includes('proposal') || q.includes('pitch') || q.includes('lamar') || q.includes('umkm')) {
+    return `Strategi pitching yang tepat adalah kunci memenangkan proyek di **Micro-Internship Hub**, ${name}!
 
-**Formula Portofolio yang Disukai Rekruter 2026:**
-1. **Highlight Masalah Nyata:** Sebutkan siapa yang terbantu (misal: "Proyek Micro-Internship untuk Kedai Kopi Kenangan Senja").
-2. **Tunjukkan Tech Stack Industri:** Sebutkan tool seperti SQL, Looker Studio, React, atau Figma yang relevan.
-3. **Sertakan Tautan Bukti Publik:** Link GitHub, Dashboard interaktif, atau sertifikat terverifikasi dari Gasterus.
+Berikut kerangka **Proposal 3 Paragraf** yang terbukti efektif meluluhkan pemilik UMKM/Startup:
 
-Rekomendasi saya: Ambil 1 proyek dari **Micro-Internship Hub** hari ini, selesaikan dalam 1-2 minggu, dan cantumkan sebagai pengalaman freelance terverifikasi!`;
+📝 **Contoh Template Pitch:**
+> *"Halo tim [Nama Usaha/UMKM]! Saya ${name}, mahasiswa ${major} ${campus}. Saya melihat Anda membutuhkan bantuan untuk [sebutkan judul tugas].*
+>
+> *Saya memahami tantangan operasional bisnis UMKM: Anda butuh hasil yang rapi, cepat, dan mudah dipahami tanpa jargon rumit. Saya sudah menguasai [sebutkan 2 skill relevan] dan siap menyelesaikan [deliverables spesifik] dalam waktu [durasi proyek] minggu.*
+>
+> *Anda bisa melihat sampel kualitas pekerjaan saya melalui portofolio/link berikut: [link GitHub/Drive]. Saya siap berdiskusi singkat untuk memulai!"*
+
+🔥 **Tips Tambahan:**
+Pemilik UMKM tidak butuh teori skripsi—mereka butuh kepastian bahwa masalah bisnis mereka beres tepat waktu. Fokuslah pada manfaat nyata bagi mereka!`;
   }
 
-  return `Halo ${profile?.name || 'Sobat Gasterus'}! Sebagai mentormu, saya siap membimbingmu menjembatani gap antara jurusan **${profile?.major || 'Sistem Informasi'}** dengan target kariermu sebagai **${profile?.dreamJob || 'Data Analyst'}**.
+  // 3. Weekly Study Priorities & Action Plan
+  if (q.includes('prioritas') || q.includes('minggu') || q.includes('belajar') || q.includes('action')) {
+    return `Berdasarkan hasil analisis kurikulum **${major} (${campus})**, berikut prioritas belajar 7 hari ke depan untuk posisi **${targetRole}**:
 
-Berdasarkan analisis terkini, kamu memiliki fondasi yang baik di konsep dasar, namun perlu memperbanyak **jam terbang di perkakas industri dan proyek riil**.
+📅 **Rencana Aksi 7 Hari:**
+1. **Hari 1-3 (Fokus Tooling Kritis):**
+   Pelajari dan praktikkan langsung: **${gaps}**. Jangan hanya membaca dokumentasi, buat 1 skrip atau visualisasi mini.
+2. **Hari 4-5 (Eksplorasi Proyek Mikro):**
+   Buka tab **Micro-Internship Hub** di Gasterus, pilih 1 tugas mini dari UMKM lokal yang sesuai dengan skill yang baru kamu pelajari, lalu kirimkan proposal.
+3. **Hari 6-7 (Kemas Portofolio):**
+   Unggah kode/desain ke GitHub atau Notion dengan file \`README.md\` yang menjelaskan masalah bisnis yang diselesaikan.
 
-Kamu bisa menanyakan apapun padaku, misalnya:
-- *"Bagaimana cara menulis proposal yang dilirik UMKM di Micro-Internship Hub?"*
-- *"Bantu saya simulasi interview teknis untuk posisi ${profile?.dreamJob || 'Data Analyst'}"*
-- *"Bagaimana cara menjelaskan proyek kuliah agar terdengar relevan di industri?"*
+Dengan konsistensi 10-12 jam seminggu, kamu akan menutup skill gap ini jauh sebelum wisuda!`;
+  }
 
-Apa yang ingin kamu diskusikan hari ini?`;
+  // 4. Resume & Portfolio Paradox
+  if (q.includes('resume') || q.includes('cv') || q.includes('portofolio') || q.includes('paradoks')) {
+    return `Bagus sekali kamu menanyakan ini, ${name}! Paradoks portofolio ("butuh pengalaman untuk dapat kerja, tapi butuh kerja untuk dapat pengalaman") adalah masalah nomor satu mahasiswa.
+
+**Cara Memecahkannya di Gasterus:**
+1. **Ubah Tugas Kuliah Biasa Menjadi Studi Kasus Bisnis:**
+   Jangan tulis: *"Tugas Mata Kuliah Basis Data"*.
+   Tulis: *"Optimasi Skema Basis Data Transaksi untuk Kasus Ritel Menggunakan PostgreSQL & Query Indexing"*.
+2. **Kerjakan Proyek Skala Mikro untuk UMKM:**
+   Satu proyek nyata berbayar dari UMKM (meskipun hanya berdurasi 1-2 minggu) bernilai 10x lebih tinggi di mata rekruter dibanding makalah teori kampus.
+3. **Sertakan Kredensial Terverifikasi:**
+   Sertifikat digital terverifikasi dari Gasterus memuat testimoni bintang 5 dari pemilik usaha dan ID verifikasi resmi DevFest 2026.
+
+Ambil satu proyek di **Micro-Internship Hub** hari ini untuk mulai membangun rekam jejakmu!`;
+  }
+
+  // 5. General Contextual Mentorship Response
+  return `Halo ${name}! Sebagai mentormu di platform Gasterus, saya mengamati profilmu sebagai mahasiswa **${major}** di **${campus}** dengan target menjadi **${targetRole}**.
+
+Dari data kesiapan kerjamu, kamu memiliki modal akademis yang baik, namun perlu memperkuat portofolio pada area: **${gaps}**.
+
+Kamu bisa mendiskusikan topik apapun denganku:
+- *"Bantu saya simulasi wawancara teknis untuk ${targetRole}"*
+- *"Bagaimana cara menulis proposal yang disukai UMKM?"*
+- *"Skill apa yang harus saya pelajari 7 hari ke depan?"*
+- *"Bagaimana cara membuat CV saya lolos screening HRD?"*
+
+Topik apa yang ingin kita bedah pertama kali?`;
 }
 
 // Dev and Prod setup

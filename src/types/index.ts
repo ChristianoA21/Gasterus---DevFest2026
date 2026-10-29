@@ -1,4 +1,30 @@
-export type NavigationTab = 'analyzer' | 'roadmap' | 'internships' | 'workspace' | 'mentor';
+export type UserRole = 'mahasiswa' | 'umkm' | 'admin';
+
+export type NavigationTab = 
+  | 'analyzer' 
+  | 'roadmap' 
+  | 'internships' 
+  | 'workspace' 
+  | 'mentor'
+  | 'umkm-dashboard'
+  | 'umkm-projects'
+  | 'umkm-candidates'
+  | 'admin-dashboard'
+  | 'admin-moderation'
+  | 'admin-certificates'
+  | 'admin-logs';
+
+export interface UserAccount {
+  id: string;
+  role: UserRole;
+  name: string;
+  email: string;
+  avatarUrl: string;
+  organizationOrCampus: string;
+  roleTitle: string;
+  companyType?: 'UMKM' | 'Startup' | 'Agency';
+  verifiedStatus?: boolean;
+}
 
 export interface UserProfile {
   name: string;
@@ -73,6 +99,8 @@ export interface MicroInternship {
   postedDate: string;
   deadline: string;
   verifiedPartner: boolean;
+  createdBy?: string;
+  status?: 'active' | 'in_progress' | 'completed' | 'closed';
 }
 
 export interface ApplicationSubmission {
@@ -91,6 +119,13 @@ export interface ApplicationSubmission {
   rating?: number;
   clientReview?: string;
   certificateId?: string;
+  // Candidate profile info when reviewed by UMKM or Admin
+  applicantName?: string;
+  applicantUniversity?: string;
+  applicantMajor?: string;
+  applicantSemester?: number;
+  applicantMatchScore?: number;
+  applicantEmail?: string;
 }
 
 export interface ChatMessage {
@@ -99,4 +134,58 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
   suggestedActions?: { label: string; action: () => void }[];
+}
+
+// Admin & Moderation types
+export interface CampusModerationItem {
+  id: string;
+  name: string;
+  city: string;
+  province: string;
+  tier: 'unggul' | 'berkembang';
+  accreditation: 'Unggul' | 'A' | 'Baik Sekali' | 'B';
+  studentCount: number;
+  avgCurriculumGap: number;
+  topRequestedRole: string;
+  status: 'verified' | 'audit_pending' | 'flagged';
+  lastUpdated: string;
+}
+
+export interface UmkmVerificationItem {
+  id: string;
+  companyName: string;
+  ownerName: string;
+  businessType: 'Kuliner & F&B' | 'Fashion & Kriya' | 'Agrikultur' | 'EduTech & Software' | 'Jasa Kreatif';
+  nibNumber: string;
+  location: string;
+  stipendBalance: number;
+  verified: boolean;
+  activeProjects: number;
+  completedProjects: number;
+  rating: number;
+  joinedDate: string;
+}
+
+export interface CertificateAuditRecord {
+  id: string;
+  certificateId: string;
+  studentName: string;
+  university: string;
+  companyName: string;
+  projectTitle: string;
+  issuedDate: string;
+  rating: number;
+  credentialHash: string;
+  status: 'valid' | 'revoked';
+}
+
+export interface SystemAuditLog {
+  id: string;
+  timestamp: string;
+  actor: string;
+  role: UserRole;
+  action: string;
+  target: string;
+  category: 'AI Analyzer' | 'Micro-Internship' | 'Sertifikat' | 'Autentikasi' | 'Moderasi';
+  severity: 'info' | 'success' | 'warning' | 'alert';
 }

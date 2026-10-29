@@ -9,13 +9,17 @@ import {
   UserProfile, 
   SkillGapAnalysisResult, 
   MicroInternship, 
-  ApplicationSubmission 
+  ApplicationSubmission,
+  UserRole
 } from './types';
 import { 
   INITIAL_USER_PROFILE, 
   INITIAL_MICRO_INTERNSHIPS,
-  INITIAL_ANALYSIS_RESULT 
+  INITIAL_ANALYSIS_RESULT,
+  INITIAL_UMKM_CANDIDATES,
+  DEMO_ACCOUNTS
 } from './data/mockData';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
 import { StatsBanner } from './components/StatsBanner';
 import { SkillGapAnalyzer } from './components/SkillGapAnalyzer';
@@ -23,13 +27,41 @@ import { RoadmapView } from './components/RoadmapView';
 import { MicroInternshipHub } from './components/MicroInternshipHub';
 import { StudentWorkspace } from './components/StudentWorkspace';
 import { AiCareerMentor } from './components/AiCareerMentor';
+import { UmkmDashboard } from './components/UmkmDashboard';
+import { AdminDashboard } from './components/AdminDashboard';
+import { RoleSwitcherModal } from './components/RoleSwitcherModal';
 import { ApplyProjectModal } from './components/ApplyProjectModal';
 import { PostProjectModal } from './components/PostProjectModal';
 import { CertificateModal } from './components/CertificateModal';
 import { ProfileModal } from './components/ProfileModal';
 
-export default function App() {
-  const [activeTab, setActiveTab] = useState<NavigationTab>('analyzer');
+function AppContent() {
+  const { currentRole, currentAccount, isRoleSwitchModalOpen, setIsRoleSwitchModalOpen, switchRole } = useAuth();
+  
+  // Active navigation tab
+  const [activeTab, setActiveTab] = useState<NavigationTab>(() => {
+    if (currentRole === 'umkm') return 'umkm-dashboard';
+    if (currentRole === 'admin') return 'admin-dashboard';
+    return 'analyzer';
+  });
+
+  // Keep active tab valid when role changes
+  useEffect(() => {
+    if (currentRole === 'mahasiswa') {
+      if (!['analyzer', 'roadmap', 'internships', 'workspace', 'mentor'].includes(activeTab)) {
+        setActiveTab('analyzer');
+      }
+    } else if (currentRole === 'umkm') {
+      if (!['umkm-dashboard', 'umkm-projects', 'umkm-candidates'].includes(activeTab)) {
+        setActiveTab('umkm-dashboard');
+      }
+    } else if (currentRole === 'admin') {
+      if (!['admin-dashboard', 'admin-moderation', 'admin-certificates', 'admin-logs'].includes(activeTab)) {
+        setActiveTab('admin-dashboard');
+      }
+    }
+  }, [currentRole]);
+
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('gasterus_user_profile');
     return saved ? JSON.parse(saved) : INITIAL_USER_PROFILE;
@@ -50,30 +82,22 @@ export default function App() {
     return saved ? JSON.parse(saved) : INITIAL_MICRO_INTERNSHIPS;
   });
 
-  // Seed with 1 completed micro-internship for rich initial showcase
+  // Seed with rich initial applications for student & UMKM review
   const [applications, setApplications] = useState<ApplicationSubmission[]>(() => {
     const saved = localStorage.getItem('gasterus_applications');
-    if (saved) return JSON.parse(saved);
-
-    return [
-      {
-        id: 'app-seed-01',
-        projectId: 'gasterus-proj-01',
-        projectTitle: 'Dashboard Analisis Penjualan & Perilaku Pelanggan',
-        company: 'Kopi Kenangan Senja (UMKM)',
-        stipend: 1200000,
-        status: 'completed',
-        pitch: 'Halo tim Kopi Kenangan Senja, saya menguasai SQL dan Looker Studio untuk merapikan dataset penjualan kedai.',
-        portfolioLink: 'https://github.com/bintangpratama/pos-sales-analytics',
-        submissionDeliverableUrl: 'https://lookerstudio.google.com/reporting/demo-sales-pos',
-        submissionNotes: 'Dashboard 3 halaman telah selesai: Analisis Menu Terlaris, Peak Hours, dan Rekomendasi Bundling Promo.',
-        appliedAt: '12 Oktober 2026',
-        completedAt: '24 Oktober 2026',
-        rating: 5,
-        clientReview: 'Dashboard yang dibuat Bintang sangat mudah dipahami oleh barista dan manajer kami. Omzet kami naik 18% setelah menerapkan bundling menu!',
-        certificateId: 'GAS-2026-KP089',
-      },
-    ];
+    if (saved) {
+      try {
+        const parsed: ApplicationSubmission[] = JSON.parse(saved);
+        const hasRichCandidates = parsed.some((p) => p.id === 'cand-01');
+        if (!hasRichCandidates) {
+          return [...INITIAL_UMKM_CANDIDATES, ...parsed];
+        }
+        return parsed;
+      } catch {
+        return INITIAL_UMKM_CANDIDATES;
+      }
+    }
+    return INITIAL_UMKM_CANDIDATES;
   });
 
   const [filterTagInHub, setFilterTagInHub] = useState<string>('');
@@ -138,9 +162,14 @@ export default function App() {
       projectTitle: appData.projectTitle,
       company: appData.company,
       stipend: appData.stipend,
-      status: 'in_progress',
+      status: 'applied',
       pitch: appData.pitch,
       portfolioLink: appData.portfolioLink,
+      applicantName: userProfile.name,
+      applicantUniversity: userProfile.university,
+      applicantMajor: userProfile.major,
+      applicantSemester: userProfile.semester,
+      applicantMatchScore: analysisResult?.matchPercentage || 68,
       appliedAt: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
     };
 
@@ -173,80 +202,166 @@ export default function App() {
   };
 
   const activeAppsCount = applications.filter(
-    (a) => a.status === 'applied' || a.status === 'in_progress'
+    (a) => a.status === 'applied' || a.status === 'in_progress' || a.status === 'submitted'
   ).length;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      {/* Top Navbar */}
+      {/* Top Navbar with Role Badge & Quick Switcher */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         userProfile={userProfile}
         activeApplicationsCount={activeAppsCount}
         onOpenProfile={() => setIsProfileModalOpen(true)}
+        onOpenRoleModal={() => setIsRoleSwitchModalOpen(true)}
       />
 
-      {/* Main Content Area */}
+      {/* Role Indicator Notification Bar */}
+      <div className={`py-1.5 px-4 text-xs font-medium border-b flex items-center justify-between transition-colors ${
+        currentRole === 'mahasiswa'
+          ? 'bg-indigo-950/40 border-indigo-500/20 text-indigo-300'
+          : currentRole === 'umkm'
+          ? 'bg-amber-950/40 border-amber-500/20 text-amber-300'
+          : 'bg-purple-950/40 border-purple-500/20 text-purple-300'
+      }`}>
+        <div className="max-w-7xl mx-auto w-full flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-bold">
+              {currentRole === 'mahasiswa' && '🎓 Mode Mahasiswa: '}
+              {currentRole === 'umkm' && '🏢 Mode Mitra UMKM: '}
+              {currentRole === 'admin' && '🛡️ Mode Super Admin: '}
+            </span>
+            <span className="hidden sm:inline text-slate-300">
+              {currentRole === 'mahasiswa' && 'Analisis gap kampus, roadmap mandiri, dan submit lamaran micro-internship.'}
+              {currentRole === 'umkm' && `Kelola lowongan proyek & review proposal pelamar untuk ${currentAccount.organizationOrCampus}.`}
+              {currentRole === 'admin' && 'Pusat moderasi kurikulum kampus, verifikasi NIB UMKM, dan audit sertifikat QR.'}
+            </span>
+          </div>
+
+          <button
+            onClick={() => setIsRoleSwitchModalOpen(true)}
+            className="text-[11px] font-bold underline underline-offset-2 hover:opacity-80 shrink-0 ml-3"
+          >
+            Ganti Peran Demo
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content Area based on Active Role */}
       <main className="flex-1 pb-16">
-        {/* Banner shown on initial arrival or tab switcher */}
-        {activeTab === 'analyzer' && (
-          <StatsBanner onQuickNavigate={(tab) => setActiveTab(tab)} />
+        {/* =========================================
+            ROLE 1: MAHASISWA
+           ========================================= */}
+        {currentRole === 'mahasiswa' && (
+          <>
+            {/* Banner shown on initial arrival or tab switcher */}
+            {activeTab === 'analyzer' && (
+              <StatsBanner onQuickNavigate={(tab) => setActiveTab(tab)} />
+            )}
+
+            {/* Tab 1: AI Skill Gap Analyzer */}
+            {activeTab === 'analyzer' && (
+              <SkillGapAnalyzer
+                userProfile={userProfile}
+                onUpdateProfile={handleUpdateProfile}
+                analysisResult={analysisResult}
+                setAnalysisResult={setAnalysisResult}
+                onNavigateTab={setActiveTab}
+                onFilterMicroInternshipsByTag={handleFilterMicroInternshipsByTag}
+              />
+            )}
+
+            {/* Tab 2: Roadmap Belajar Personal */}
+            {activeTab === 'roadmap' && (
+              <RoadmapView
+                analysisResult={analysisResult}
+                userProfile={userProfile}
+                onNavigateTab={setActiveTab}
+                onFilterMicroInternshipsByTag={handleFilterMicroInternshipsByTag}
+                completedMilestones={completedMilestones}
+                onToggleMilestone={handleToggleMilestone}
+              />
+            )}
+
+            {/* Tab 3: Micro-Internship Marketplace (Mode Pelamar) */}
+            {activeTab === 'internships' && (
+              <MicroInternshipHub
+                projects={projects}
+                userProfile={userProfile}
+                onApplyProject={handleApplyToProject}
+                onOpenPostProjectModal={() => setIsPostProjectModalOpen(true)}
+                initialTagFilter={filterTagInHub}
+                onClearTagFilter={() => setFilterTagInHub('')}
+              />
+            )}
+
+            {/* Tab 4: Student Workspace & Verified Credentials */}
+            {activeTab === 'workspace' && (
+              <StudentWorkspace
+                applications={applications}
+                userProfile={userProfile}
+                onUpdateApplicationStatus={handleUpdateApplicationStatus}
+                onNavigateTab={setActiveTab}
+                onViewCertificate={(app) => setCertificateModalApp(app)}
+              />
+            )}
+
+            {/* Tab 5: AI Career Mentor Chat */}
+            {activeTab === 'mentor' && (
+              <AiCareerMentor
+                userProfile={userProfile}
+                analysisResult={analysisResult}
+                applications={applications}
+              />
+            )}
+          </>
         )}
 
-        {/* Tab 1: AI Skill Gap Analyzer */}
-        {activeTab === 'analyzer' && (
-          <SkillGapAnalyzer
-            userProfile={userProfile}
-            onUpdateProfile={handleUpdateProfile}
-            analysisResult={analysisResult}
-            setAnalysisResult={setAnalysisResult}
-            onNavigateTab={setActiveTab}
-            onFilterMicroInternshipsByTag={handleFilterMicroInternshipsByTag}
-          />
-        )}
-
-        {/* Tab 2: Roadmap Belajar Personal */}
-        {activeTab === 'roadmap' && (
-          <RoadmapView
-            analysisResult={analysisResult}
-            userProfile={userProfile}
-            onNavigateTab={setActiveTab}
-            onFilterMicroInternshipsByTag={handleFilterMicroInternshipsByTag}
-            completedMilestones={completedMilestones}
-            onToggleMilestone={handleToggleMilestone}
-          />
-        )}
-
-        {/* Tab 3: Micro-Internship Marketplace */}
-        {activeTab === 'internships' && (
-          <MicroInternshipHub
+        {/* =========================================
+            ROLE 2: UMKM / STARTUP
+           ========================================= */}
+        {currentRole === 'umkm' && (
+          <UmkmDashboard
+            currentAccount={currentAccount}
             projects={projects}
-            userProfile={userProfile}
-            onApplyProject={handleApplyToProject}
-            onOpenPostProjectModal={() => setIsPostProjectModalOpen(true)}
-            initialTagFilter={filterTagInHub}
-            onClearTagFilter={() => setFilterTagInHub('')}
-          />
-        )}
-
-        {/* Tab 4: Student Workspace & Verified Credentials */}
-        {activeTab === 'workspace' && (
-          <StudentWorkspace
             applications={applications}
-            userProfile={userProfile}
+            onOpenPostProjectModal={() => setIsPostProjectModalOpen(true)}
             onUpdateApplicationStatus={handleUpdateApplicationStatus}
-            onNavigateTab={setActiveTab}
             onViewCertificate={(app) => setCertificateModalApp(app)}
           />
         )}
 
-        {/* Tab 5: AI Career Mentor Chat */}
-        {activeTab === 'mentor' && (
-          <AiCareerMentor
-            userProfile={userProfile}
-            analysisResult={analysisResult}
-            applications={applications}
+        {/* =========================================
+            ROLE 3: ADMIN
+           ========================================= */}
+        {currentRole === 'admin' && (
+          <AdminDashboard
+            currentAccount={currentAccount}
+            onViewCertificatePreview={(cert) => {
+              const matchedApp = applications.find(a => a.certificateId === cert.certificateId);
+              if (matchedApp) {
+                setCertificateModalApp(matchedApp);
+              } else {
+                setCertificateModalApp({
+                  id: cert.id,
+                  projectId: 'proj-admin-preview',
+                  projectTitle: cert.projectTitle,
+                  company: cert.companyName,
+                  stipend: 1500000,
+                  status: 'completed',
+                  pitch: 'Proyek micro-internship resmi yang telah diverifikasi oleh tim kurikulum Gasterus.',
+                  portfolioLink: 'https://github.com/gasterus-verified',
+                  appliedAt: cert.issuedDate,
+                  completedAt: cert.issuedDate,
+                  rating: cert.rating,
+                  clientReview: 'Kinerja mahasiswa sangat baik dan hasil deliverables memenuhi standar industri.',
+                  certificateId: cert.certificateId,
+                  applicantName: cert.studentName,
+                  applicantUniversity: cert.university,
+                });
+              }
+            }}
           />
         )}
       </main>
@@ -259,15 +374,28 @@ export default function App() {
             <span>•</span>
             <span>DevFest 2026 Competition Entry</span>
             <span>•</span>
-            <span className="text-indigo-400">Powered by Google Gemini 3.8 Flash SDK</span>
+            <span className="text-indigo-400">Google Gemini 3.8 Flash SDK</span>
+            <span>•</span>
+            <span className="text-amber-400">Role-Based Access (Mahasiswa • UMKM • Admin)</span>
           </div>
           <div className="flex items-center gap-4 text-slate-400">
-            <span>Solusi 3 Masalah Mahasiswa: Krisis PD • Action Plan • Paradoks Portofolio</span>
+            <span>Solusi 3 Masalah: Krisis PD • Action Plan • Paradoks Portofolio</span>
           </div>
         </div>
       </footer>
 
-      {/* Modals */}
+      {/* Role Switcher Modal */}
+      <RoleSwitcherModal
+        isOpen={isRoleSwitchModalOpen}
+        onClose={() => setIsRoleSwitchModalOpen(false)}
+        onSelectRole={(role) => {
+          if (role === 'mahasiswa') setActiveTab('analyzer');
+          else if (role === 'umkm') setActiveTab('umkm-dashboard');
+          else setActiveTab('admin-dashboard');
+        }}
+      />
+
+      {/* Existing Feature Modals */}
       <ApplyProjectModal
         project={applyModalProject}
         userProfile={userProfile}
@@ -296,5 +424,13 @@ export default function App() {
         onSaveProfile={(updated) => setUserProfile(updated)}
       />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
