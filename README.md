@@ -8,10 +8,10 @@
 ## 🚀 Live Demo & Deployment Link
 
 * **Web Application (Google Cloud Run):**
---- [https://gasterus-app-xxxxxx-uc.a.run.app](https://gasterus-app-xxxxxx-uc.a.run.app)
+  <!-- [https://gasterus-app-xxxxxx-uc.a.run.app](https://gasterus-app-xxxxxx-uc.a.run.app) -->
   *(Link Menyusul)*
 * **Mobile / Web Preview (Firebase Hosting):**
-  --- [https://gasterus-devfest2026.web.app](https://gasterus-devfest2026.web.app) 
+  <!-- [https://gasterus-devfest2026.web.app](https://gasterus-devfest2026.web.app)  -->
   *(Link Menyusul)*
 
 ---
